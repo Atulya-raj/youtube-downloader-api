@@ -200,7 +200,7 @@ def run_download_task(task_id, url, format_type, quality):
         'nocheckcertificate': True,
         'socket_timeout': 30,
         'js_runtimes': {'node': {}},
-        'extractor_args': {'youtube': ['client=ios,android,web']},
+        'extractor_args': {'youtube': ['client=ios,android']},
     }
     
     # Use cookies if available to bypass YouTube's datacenter IP block
