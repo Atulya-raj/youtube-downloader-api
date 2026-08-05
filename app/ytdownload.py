@@ -204,7 +204,6 @@ def run_download_task(task_id, url, format_type, quality):
         'skip_unavailable_fragments': True,
         'nocheckcertificate': True,
         'socket_timeout': 30,
-        'js_runtimes': {'node': {}},
         'extractor_args': {'youtube': ['client=ios,android']},
         'logger': DummyLogger(),
     }
