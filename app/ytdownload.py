@@ -200,9 +200,13 @@ def run_download_task(task_id, url, format_type, quality):
         'nocheckcertificate': True,
         'socket_timeout': 30,
         'js_runtimes': {'node': {}},
-        # These extractor args significantly reduce Youtube bot blocks
-        'extractor_args': {'youtube': ['player_client=android', 'player_client=web']},
+        'extractor_args': {'youtube': ['client=ios,android,web']},
     }
+    
+    # Use cookies if available to bypass YouTube's datacenter IP block
+    cookies_path = os.path.join(app.config.get('WORKING_DIRECTORY', ''), 'cookies.txt')
+    if os.path.exists(cookies_path):
+        ydl_opts['cookiefile'] = cookies_path
     
     if ffmpeg_path:
         ydl_opts['ffmpeg_location'] = ffmpeg_path
