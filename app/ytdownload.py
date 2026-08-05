@@ -1,4 +1,16 @@
 import os
+import subprocess
+_old_popen = subprocess.Popen
+class SafePopen(_old_popen):
+    def __init__(self, *args, **kwargs):
+        if 'stdin' not in kwargs or kwargs['stdin'] is None:
+            kwargs['stdin'] = subprocess.DEVNULL
+        if hasattr(subprocess, 'CREATE_NO_WINDOW'):
+            if 'creationflags' not in kwargs:
+                kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+        super().__init__(*args, **kwargs)
+subprocess.Popen = SafePopen
+
 import uuid
 import threading
 import time
@@ -204,6 +216,7 @@ def run_download_task(task_id, url, format_type, quality):
         'skip_unavailable_fragments': True,
         'nocheckcertificate': True,
         'socket_timeout': 30,
+        'js_runtimes': {'node': {}},
         'extractor_args': {'youtube': ['client=ios,android']},
         'logger': DummyLogger(),
     }
@@ -297,8 +310,6 @@ def run_download_task(task_id, url, format_type, quality):
         print(f"DOWNLOAD TASK EXCEPTION FOR {task_id}:")
         print(error_msg)
         logging.error(error_msg)
-        with open("flask_crash.txt", "w") as f:
-            f.write(error_msg)
         
         task.update({
             'status': 'failed',
