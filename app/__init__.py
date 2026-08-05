@@ -11,7 +11,16 @@ app.config['WORKING_DIRECTORY'] = current_dir
 
 # Setup logging
 os.makedirs(os.path.join(current_dir, 'logs'), exist_ok=True)
-logging.basicConfig(filename=os.path.join(current_dir, 'logs/error.log'), level=logging.INFO)
+log_file = os.path.join(current_dir, 'logs/error.log')
+
+# Remove any existing handlers (like StreamHandlers that write to console)
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+
+file_handler = logging.FileHandler(log_file)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logging.root.setLevel(logging.INFO)
+logging.root.addHandler(file_handler)
 
 # Write YouTube cookies to a file if provided in environment variables
 cookies_env = os.environ.get('YOUTUBE_COOKIES')

@@ -38,7 +38,7 @@ def clean_old_files():
                     try:
                         os.remove(file_path)
                     except Exception as e:
-                        print(f"Error removing expired file {file_path}: {e}")
+                        logging.error(f"Error removing expired file {file_path}: {e}")
                 download_tasks.pop(task_id, None)
 
 cleanup_thread = threading.Thread(target=clean_old_files, daemon=True)
@@ -184,7 +184,7 @@ def run_download_task(task_id, url, format_type, quality):
                     'eta': '0s'
                 })
         except Exception as err:
-            print(f"Error in progress hook: {err}")
+            logging.error(f"Error in progress hook: {err}")
 
     ffmpeg_path = get_ffmpeg_path()
     
@@ -295,9 +295,7 @@ def run_download_task(task_id, url, format_type, quality):
             f"{'='*50}\n"
         )
         
-        print(f"DOWNLOAD TASK EXCEPTION FOR {task_id}:")
-        print(error_msg)
-        logging.error(error_msg)
+        logging.error(f"DOWNLOAD TASK EXCEPTION FOR {task_id}:\n{error_msg}")
         
         with open("flask_crash.txt", "w", encoding='utf-8') as f:
             f.write(error_msg)
