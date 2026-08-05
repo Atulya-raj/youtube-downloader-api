@@ -204,7 +204,8 @@ def run_download_task(task_id, url, format_type, quality):
     }
     
     # Use cookies if available to bypass YouTube's datacenter IP block
-    cookies_path = os.path.join(app.config.get('WORKING_DIRECTORY', ''), 'cookies.txt')
+    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cookies_path = os.path.join(current_dir, 'cookies.txt')
     if os.path.exists(cookies_path):
         ydl_opts['cookiefile'] = cookies_path
     
