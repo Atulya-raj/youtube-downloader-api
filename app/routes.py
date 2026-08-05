@@ -31,20 +31,28 @@ def direct_download():
 
     task_id = str(uuid.uuid4())
     
+    print("HITTING direct_download ROUTE!", flush=True)
+    
     # Import gracefully in case the app is run from a different entry point
     try:
         from app.ytdownload import run_download_task
     except ImportError:
         from ytdownload import run_download_task
 
+    print("Imported run_download_task successfully!", flush=True)
     # Run download synchronously. 
     # run_download_task initializes the state internally, making it immune to dictionary desyncs
     task = run_download_task(task_id, url, 'video', '1080p')
+    print("run_download_task finished! Task:", task, flush=True)
     
     if not task or task.get('status') != 'ready':
         error_msg = task.get('error') if task else 'Download failed'
         if not error_msg:
             error_msg = 'Download failed'
+        
+        with open("flask_routes_task.txt", "w") as f:
+            f.write(str(task))
+            
         return jsonify({'error': str(error_msg)}), 500
 
     filepath = task.get('filepath')

@@ -1,16 +1,4 @@
 import os
-import subprocess
-_old_popen = subprocess.Popen
-class SafePopen(_old_popen):
-    def __init__(self, *args, **kwargs):
-        if 'stdin' not in kwargs or kwargs['stdin'] is None:
-            kwargs['stdin'] = subprocess.DEVNULL
-        if hasattr(subprocess, 'CREATE_NO_WINDOW'):
-            if 'creationflags' not in kwargs:
-                kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
-        super().__init__(*args, **kwargs)
-subprocess.Popen = SafePopen
-
 import uuid
 import threading
 import time
@@ -311,6 +299,9 @@ def run_download_task(task_id, url, format_type, quality):
         print(error_msg)
         logging.error(error_msg)
         
+        with open("flask_crash.txt", "w", encoding='utf-8') as f:
+            f.write(error_msg)
+            
         task.update({
             'status': 'failed',
             'error': str(e)
