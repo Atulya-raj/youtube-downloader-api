@@ -188,6 +188,11 @@ def run_download_task(task_id, url, format_type, quality):
 
     ffmpeg_path = get_ffmpeg_path()
     
+    class DummyLogger:
+        def debug(self, msg): pass
+        def warning(self, msg): pass
+        def error(self, msg): pass
+
     ydl_opts = {
         'paths': {'home': DOWNLOAD_DIR},
         'outtmpl': {'default': f"{task_id}.%(ext)s"},
@@ -201,6 +206,7 @@ def run_download_task(task_id, url, format_type, quality):
         'socket_timeout': 30,
         'js_runtimes': {'node': {}},
         'extractor_args': {'youtube': ['client=ios,android']},
+        'logger': DummyLogger(),
     }
     
     # Use cookies if available to bypass YouTube's datacenter IP block
@@ -292,6 +298,8 @@ def run_download_task(task_id, url, format_type, quality):
         print(f"DOWNLOAD TASK EXCEPTION FOR {task_id}:")
         print(error_msg)
         logging.error(error_msg)
+        with open("flask_crash.txt", "w") as f:
+            f.write(error_msg)
         
         task.update({
             'status': 'failed',

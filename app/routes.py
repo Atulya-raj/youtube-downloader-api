@@ -45,6 +45,8 @@ def direct_download():
         error_msg = task.get('error') if task else 'Download failed'
         if not error_msg:
             error_msg = 'Download failed'
+        with open("route_crash.txt", "w") as f:
+            f.write(str(error_msg))
         return jsonify({'error': str(error_msg)}), 500
 
     filepath = task.get('filepath')
