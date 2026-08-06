@@ -209,11 +209,8 @@ def run_download_task(task_id, url, format_type, quality):
         'logger': DummyLogger(),
     }
     
-    # Use cookies if available to bypass YouTube's datacenter IP block
-    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    cookies_path = os.path.join(current_dir, 'cookies.txt')
-    if os.path.exists(cookies_path):
-        ydl_opts['cookiefile'] = cookies_path
+    # Android and iOS clients DO NOT support cookies and will crash yt-dlp if a cookiefile is passed!
+    # Therefore, we strictly do not pass any cookies to yt-dlp.
     
     if ffmpeg_path:
         ydl_opts['ffmpeg_location'] = ffmpeg_path
