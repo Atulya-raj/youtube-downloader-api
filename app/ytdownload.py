@@ -205,7 +205,7 @@ def run_download_task(task_id, url, format_type, quality):
         'nocheckcertificate': True,
         'socket_timeout': 30,
         'js_runtimes': {'node': {}},
-        'extractor_args': {'youtube': ['client=ios,android']},
+        'extractor_args': {'youtube': {'player_client': ['android', 'ios']}},
         'logger': DummyLogger(),
     }
     
@@ -218,7 +218,7 @@ def run_download_task(task_id, url, format_type, quality):
     if ffmpeg_path:
         ydl_opts['ffmpeg_location'] = ffmpeg_path
 
-    has_ffmpeg = ffmpeg_path is not None
+    has_ffmpeg = bool(ffmpeg_path)  # Enable ffmpeg to get 1080p+ streams
 
     if format_type == 'audio':
         if has_ffmpeg:
@@ -247,35 +247,62 @@ def run_download_task(task_id, url, format_type, quality):
             ydl_opts['merge_output_format'] = 'mp4'
         else:
             ydl_opts['format'] = (
-                f"best[height={target_height}][ext=mp4]/"
-                f"best[height={target_height}]/"
-                f"best[height<={target_height}]"
+                f"b[height<={target_height}][ext=mp4]/"
+                f"b[height<={target_height}]/"
+                f"b/"
+                f"best"
             )
 
     try:
+        logging.error(f"YDL OPTS: {ydl_opts}")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # We MUST download to merge video+audio for 1080p DASH streams
             info = ydl.extract_info(url, download=True)
 
-            # Find actual completed downloaded file on disk matching task_id
-            target_file = None
-            matches = glob.glob(os.path.join(DOWNLOAD_DIR, f"{task_id}.*"))
-            for m in matches:
-                if not m.endswith('.part') and not m.endswith('.ytdl'):
-                    target_file = m
-                    break
-
-            if not target_file:
-                target_file = os.path.join(DOWNLOAD_DIR, f"{task_id}.mp4")
-
             video_title = sanitize_filename(info.get('title', 'video'))
-            file_ext = os.path.splitext(target_file)[1] or '.mp4'
-            clean_filename = f"{video_title}{file_ext}"
+            # Get the path of the downloaded merged file
+            filepath = ydl.prepare_filename(info)
+            if has_ffmpeg and not filepath.endswith('.mp4'):
+                # yt-dlp might change the extension during merge_output_format
+                filepath = os.path.splitext(filepath)[0] + '.mp4'
+                
+            if not os.path.exists(filepath):
+                # Try finding the file by ignoring extension
+                base = os.path.splitext(filepath)[0]
+                import glob
+                matches = glob.glob(f"{glob.escape(base)}.*")
+                if matches:
+                    filepath = matches[0]
+
+            # Upscale video to target_height using ffmpeg if requested
+            if has_ffmpeg and format_type != 'audio' and os.path.exists(filepath):
+                task.update({'status': f'upscaling to {target_height}p (this may take a minute)...'})
+                upscaled_filepath = os.path.splitext(filepath)[0] + '_upscaled.mp4'
+                import subprocess
+                ffmpeg_cmd = [
+                    ffmpeg_path,
+                    '-y',
+                    '-i', filepath,
+                    '-vf', f'scale=-2:{target_height}',
+                    '-c:v', 'libx264',
+                    '-preset', 'fast',
+                    '-c:a', 'copy',
+                    upscaled_filepath
+                ]
+                try:
+                    subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if os.path.exists(upscaled_filepath):
+                        os.remove(filepath)
+                        filepath = upscaled_filepath
+                except Exception as e:
+                    logging.error(f"Failed to upscale video: {e}")
 
             task.update({
                 'status': 'ready',
                 'percent': 100.0,
-                'filepath': target_file,
-                'filename': clean_filename,
+                'filepath': filepath,
+                'download_url': None, # We will serve it locally
+                'filename': f"{video_title}.mp4",
                 'title': info.get('title', 'video')
             })
             return task

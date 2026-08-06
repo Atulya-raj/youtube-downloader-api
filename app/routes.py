@@ -53,30 +53,137 @@ def direct_download():
             
         return jsonify({'error': str(error_msg)}), 500
 
+    # We now download the file locally on the backend to support 1080p
     filepath = task.get('filepath')
     filename = task.get('filename', 'video.mp4')
-
-    if not filepath or not os.path.exists(filepath):
-        return jsonify({'error': 'File missing on server'}), 404
-
-    import threading
     
-    def cleanup_file(path):
-        # Wait 5 minutes to ensure the file is fully sent to the client, then delete it
-        time.sleep(300)
-        try:
-            if os.path.exists(path):
-                os.remove(path)
-                logging.info(f"Cleaned up file: {path}")
-        except Exception as e:
-            logging.error(f"Failed to cleanup {path}: {e}")
+    if not filepath:
+        return jsonify({'error': 'Failed to download file locally'}), 500
+        
+    download_url = f"/downloadLocal?task_id={task_id}&filename={filename}"
 
-    # Start cleanup thread
-    threading.Thread(target=cleanup_file, args=(filepath,), daemon=True).start()
+    return jsonify({
+        'download_url': download_url,
+        'filename': filename
+    })
 
-    return send_file(
-        filepath,
-        as_attachment=True,
-        download_name=filename,
-        mimetype='application/octet-stream'
-    )
+@app.route('/downloadVideoProxy', methods=['GET'])
+def proxy_download():
+    """GET endpoint that extracts the direct video URL and proxies the video stream to the client."""
+    url = request.args.get('url', '').strip()
+    if not url:
+        return jsonify({'error': 'URL is required'}), 400
+
+    if not re.search(r'(?:youtube\.com|youtu\.be|youtube-nocookie\.com)', url):
+        return jsonify({'error': 'Only YouTube URLs are supported'}), 400
+
+    task_id = str(uuid.uuid4())
+    try:
+        from app.ytdownload import run_download_task
+    except ImportError:
+        from ytdownload import run_download_task
+
+    # Extract URL synchronously
+    task = run_download_task(task_id, url, 'video', '1080p')
+    
+    if not task or task.get('status') != 'ready':
+        error_msg = task.get('error') if task else 'Download failed'
+        return jsonify({'error': str(error_msg)}), 500
+
+    download_url = task.get('download_url')
+    filename = task.get('filename', 'video.mp4')
+    
+    if not download_url:
+        return jsonify({'error': 'Failed to extract download URL'}), 404
+
+    from flask import Response
+    
+    try:
+        req = requests.get(download_url, stream=True)
+        
+        def generate():
+            for chunk in req.iter_content(chunk_size=65536):
+                if chunk:
+                    yield chunk
+                    
+        headers = {
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Type': req.headers.get('Content-Type', 'video/mp4')
+        }
+        if 'Content-Length' in req.headers:
+            headers['Content-Length'] = req.headers['Content-Length']
+            
+        return Response(generate(), headers=headers)
+    except Exception as e:
+        logging.error(f"Error proxying stream: {e}")
+        return jsonify({'error': 'Error proxying stream'}), 500
+
+@app.route('/streamUrl', methods=['GET'])
+def stream_url():
+    """Proxies an already extracted download_url to the client with Content-Disposition attachment."""
+    url = request.args.get('url', '').strip()
+    filename = request.args.get('filename', 'video.mp4').strip()
+    
+    if not filename.lower().endswith('.mp4'):
+        filename += '.mp4'
+    
+    if not url:
+        return jsonify({'error': 'URL is required'}), 400
+
+    from flask import Response
+    import requests
+    
+    try:
+        req = requests.get(url, stream=True)
+        
+        def generate():
+            for chunk in req.iter_content(chunk_size=65536):
+                if chunk:
+                    yield chunk
+                    
+        headers = {
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Type': req.headers.get('Content-Type', 'video/mp4')
+        }
+        if 'Content-Length' in req.headers:
+            headers['Content-Length'] = req.headers['Content-Length']
+            
+        return Response(generate(), headers=headers)
+    except Exception as e:
+        logging.error(f"Error proxying stream: {e}")
+        return jsonify({'error': 'Error proxying stream'}), 500
+
+@app.route('/downloadLocal', methods=['GET'])
+def download_local():
+    """Serves the locally downloaded and merged MP4 file to the client."""
+    from flask import send_file
+    
+    task_id = request.args.get('task_id', '').strip()
+    filename = request.args.get('filename', 'video.mp4').strip()
+    
+    if not filename.lower().endswith('.mp4'):
+        filename += '.mp4'
+        
+    if not task_id:
+        return jsonify({'error': 'task_id is required'}), 400
+        
+    from app.ytdownload import download_tasks
+    task = download_tasks.get(task_id)
+    if not task:
+        return jsonify({'error': 'Task not found or expired'}), 404
+        
+    filepath = task.get('filepath')
+    if not filepath or not os.path.exists(filepath):
+        return jsonify({'error': 'File not found on server'}), 404
+        
+    try:
+        # Use send_file to stream the local file efficiently
+        return send_file(
+            filepath,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='video/mp4'
+        )
+    except Exception as e:
+        logging.error(f"Error serving local file: {e}")
+        return jsonify({'error': 'Error serving file'}), 500
