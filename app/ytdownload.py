@@ -208,30 +208,6 @@ def run_download_task(task_id, url, format_type, quality):
         'logger': DummyLogger(),
     }
     
-    # Check for OAuth2 Base64 cache from Render Environment Variables
-    oauth_b64 = os.environ.get('YOUTUBE_OAUTH_CACHE_BASE64')
-    if oauth_b64:
-        import base64
-        import tempfile
-        import zipfile
-        import io
-        
-        # Decode the zip and extract to a temp cache directory
-        temp_dir = tempfile.gettempdir()
-        cache_dir = os.path.join(temp_dir, '.yt-dlp-cache')
-        try:
-            zip_data = base64.b64decode(oauth_b64)
-            with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
-                zf.extractall(cache_dir)
-            
-            # Tell yt-dlp to use this extracted cache and authenticate via oauth2
-            ydl_opts['cachedir'] = cache_dir
-            ydl_opts['username'] = 'oauth2'
-            ydl_opts['password'] = ''
-            logging.info("Successfully loaded OAuth2 cache from environment variable.")
-        except Exception as e:
-            logging.error(f"Failed to load OAuth2 cache: {e}")
-            
     if ffmpeg_path:
         ydl_opts['ffmpeg_location'] = ffmpeg_path
 

@@ -4,3 +4,5 @@ yt-dlp
 requests==2.31.0
 gunicorn==21.2.0
 static-ffmpeg==2.5
+yt-dlp-get-pot
+yt-dlp-getpot-wpc
