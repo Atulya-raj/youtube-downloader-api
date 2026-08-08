@@ -53,14 +53,11 @@ def direct_download():
             
         return jsonify({'error': str(error_msg)}), 500
 
-    # We now download the file locally on the backend to support 1080p
-    filepath = task.get('filepath')
+    download_url = task.get('download_url')
     filename = task.get('filename', 'video.mp4')
     
-    if not filepath:
-        return jsonify({'error': 'Failed to download file locally'}), 500
-        
-    download_url = f"/downloadLocal?task_id={task_id}&filename={filename}"
+    if not download_url:
+        return jsonify({'error': 'Failed to get download URL from API'}), 500
 
     return jsonify({
         'download_url': download_url,
