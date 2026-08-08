@@ -183,4 +183,9 @@ def download_local():
         )
     except Exception as e:
         logging.error(f"Error serving local file: {e}")
-        return jsonify({'error': 'Error serving file'}), 500
+        return jsonify({'error': 'Error serving file'}), 500
+
+@app.route('/debug_yt', methods=['GET'])
+def debug_yt():
+    import debug_yt
+    return debug_yt.run_debug_test(), 200, {'Content-Type': 'text/plain'}
