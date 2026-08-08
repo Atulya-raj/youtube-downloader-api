@@ -205,12 +205,27 @@ def run_download_task(task_id, url, format_type, quality):
         'nocheckcertificate': True,
         'socket_timeout': 30,
         'js_runtimes': {'node': {}},
-        'extractor_args': {'youtube': {'player_client': ['android', 'ios']}},
         'logger': DummyLogger(),
     }
     
-    # Android and iOS clients DO NOT support cookies and will crash yt-dlp if a cookiefile is passed!
-    # Therefore, we strictly do not pass any cookies to yt-dlp.
+    # Look for cookies in environment variable (Render) or local file
+    cookies_path = None
+    env_cookies = os.environ.get('YOUTUBE_COOKIES') or os.environ.get('YOUTUBE_COOKIES_TXT') or os.environ.get('YouTube_cookies')
+    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    local_cookies_file = os.path.join(current_dir, 'cookies.txt')
+    
+    if env_cookies:
+        import tempfile
+        # Write environment variable cookies to a temporary file for yt-dlp to read
+        temp_dir = tempfile.gettempdir()
+        cookies_path = os.path.join(temp_dir, 'yt_cookies.txt')
+        with open(cookies_path, 'w') as f:
+            f.write(env_cookies)
+    elif os.path.exists(local_cookies_file):
+        cookies_path = local_cookies_file
+        
+    if cookies_path:
+        ydl_opts['cookiefile'] = cookies_path
     
     if ffmpeg_path:
         ydl_opts['ffmpeg_location'] = ffmpeg_path
@@ -270,29 +285,6 @@ def run_download_task(task_id, url, format_type, quality):
                 matches = glob.glob(f"{glob.escape(base)}.*")
                 if matches:
                     filepath = matches[0]
-
-            # Upscale video to target_height using ffmpeg if requested
-            if has_ffmpeg and format_type != 'audio' and os.path.exists(filepath):
-                task.update({'status': f'upscaling to {target_height}p (this may take a minute)...'})
-                upscaled_filepath = os.path.splitext(filepath)[0] + '_upscaled.mp4'
-                import subprocess
-                ffmpeg_cmd = [
-                    ffmpeg_path,
-                    '-y',
-                    '-i', filepath,
-                    '-vf', f'scale=-2:{target_height}',
-                    '-c:v', 'libx264',
-                    '-preset', 'fast',
-                    '-c:a', 'copy',
-                    upscaled_filepath
-                ]
-                try:
-                    subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    if os.path.exists(upscaled_filepath):
-                        os.remove(filepath)
-                        filepath = upscaled_filepath
-                except Exception as e:
-                    logging.error(f"Failed to upscale video: {e}")
 
             task.update({
                 'status': 'ready',
